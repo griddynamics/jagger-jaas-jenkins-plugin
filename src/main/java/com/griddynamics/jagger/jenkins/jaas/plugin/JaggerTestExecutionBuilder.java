@@ -126,8 +126,10 @@ public class JaggerTestExecutionBuilder extends Builder {
             logger.println("Response body: \n" + responseEntity.getBody());
             return responseEntity.getBody();
         } catch (URISyntaxException e) {
+            logger.println();
             throw new AbortException("Invalid JaaS endpoint URL: " + e.getMessage());
         } catch (RestClientException ex) {
+            logger.println();
             throw new AbortException("Error occurred while sending Test execution to JaaS: " + ex.getMessage());
         }
     }
@@ -139,6 +141,7 @@ public class JaggerTestExecutionBuilder extends Builder {
             try {
                 TimeUnit.SECONDS.sleep(timeout);
             } catch (InterruptedException e) {
+                logger.println();
                 throw new AbortException("Error occurred while waiting Test execution to start: " + e.getMessage());
             }
         }
@@ -149,11 +152,13 @@ public class JaggerTestExecutionBuilder extends Builder {
             try {
                 TimeUnit.SECONDS.sleep(STATUS_POLLING_TIMEOUT_IN_SECONDS);
             } catch (InterruptedException e) {
+                logger.println();
                 throw new AbortException("Error occurred while waiting Test execution to start: " + e.getMessage());
             }
         }
 
         if (executionStatus == TIMEOUT) {
+            logger.println();
             throw new AbortException("Test execution cancelled by timeout.");
         }
     }
@@ -165,6 +170,7 @@ public class JaggerTestExecutionBuilder extends Builder {
             try {
                 TimeUnit.SECONDS.sleep(STATUS_POLLING_TIMEOUT_IN_SECONDS);
             } catch (InterruptedException e) {
+                logger.println();
                 throw new AbortException("Error occurred while waiting Test execution to finish: " + e.getMessage());
             }
         } while (executionStatus == RUNNING);
@@ -175,14 +181,16 @@ public class JaggerTestExecutionBuilder extends Builder {
     private TestExecutionStatus pollExecutionStatus(PrintStream logger, Long executionId) throws AbortException {
         TestExecutionStatus executionStatus;
         try {
-            logger.println("Polling test execution status...");
+            logger.print("Polling test execution status... ");
             RequestEntity<?> requestEntity = RequestEntity.get(new URI(jaasEndpoint + "/executions/" + executionId)).build();
             ResponseEntity<TestExecutionEntity> responseEntity = restTemplate.exchange(requestEntity, TestExecutionEntity.class);
             executionStatus = responseEntity.getBody().getStatus();
-            logger.println("Execution status: " + executionStatus);
+            logger.println(executionStatus);
         } catch (URISyntaxException e) {
+            logger.println();
             throw new AbortException("Invalid JaaS endpoint URL: " + e.getMessage());
         } catch (RestClientException ex) {
+            logger.println();
             throw new AbortException("Error occurred while polling Test execution status: " + ex.getMessage());
         }
         return executionStatus;
