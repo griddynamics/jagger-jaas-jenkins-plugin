@@ -68,6 +68,34 @@
         </pluginRepository>
     </pluginRepositories>
 
+    <scm>
+        <url>https://github.com/griddynamics/jagger-jaas-jenkins-plugin</url>
+        <connection>scm:git:git://github.com/griddynamics/jagger-jaas-jenkins-plugin.git</connection>
+        <developerConnection>scm:git:git@github.com:griddynamics/jagger-jaas-jenkins-plugin.git</developerConnection>
+    </scm>
+
+    <issueManagement>
+        <url>https://github.com/griddynamics/jagger-jaas-jenkins-plugin/issues</url>
+        <system>GitHub Issues</system>
+    </issueManagement>
+
+    <distributionManagement>
+        <snapshotRepository>
+            <id>gd-jagger-nexus-snapshots</id>
+            <name>gd-jagger-nexus-snapshots</name>
+            <url>https://nexus.griddynamics.net/nexus/content/repositories/jagger-snapshots/</url>
+            <layout>default</layout>
+            <uniqueVersion>false</uniqueVersion>
+        </snapshotRepository>
+
+        <repository>
+            <id>gd-jagger-nexus-releases</id>
+            <name>gd-jagger-nexus-releases</name>
+            <url>https://nexus.griddynamics.net/nexus/content/repositories/jagger-releases/</url>
+            <layout>default</layout>
+        </repository>
+    </distributionManagement>
+
     <dependencies>
         <dependency>
             <groupId>org.jenkins-ci.plugins</groupId>
