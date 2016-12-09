@@ -109,8 +109,10 @@ public class JaggerTestExecutionBuilder extends Builder {
         logger.println(format("JaaS endpoint: %s", jaasEndpoint));
         logger.println("Test execution properties:");
         logger.println(format("    Environment ID: %s", envId));
-        logger.println(format("    Load scenario ID: %s", loadScenarioId));
-        logger.println(format("    Test project URL: %s", testProjectUrl));
+        if (StringUtils.isNotEmpty(loadScenarioId))
+            logger.println(format("    Load scenario ID: %s", loadScenarioId));
+        if (StringUtils.isNotEmpty(testProjectUrl))
+            logger.println(format("    Test project URL: %s", testProjectUrl));
         logger.println(format("    Execution start timeout in seconds: %s", executionStartTimeoutInSeconds));
         return testExecutionEntity;
     }
@@ -212,6 +214,13 @@ public class JaggerTestExecutionBuilder extends Builder {
                 return FormValidation.ok();
             }
             return JaggerTestExecutionValidation.checkUrl(value);
+        }
+
+        public FormValidation doCheckEnvId(@QueryParameter String value) throws IOException, ServletException {
+            if (StringUtils.isEmpty(value)) {
+                return FormValidation.error("Environment ID is mandatory!");
+            }
+            return FormValidation.ok();
         }
 
         public FormValidation doCheckExecutionStartTimeoutInSeconds(@QueryParameter String value) throws IOException, ServletException {
