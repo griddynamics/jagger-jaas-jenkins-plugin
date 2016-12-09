@@ -135,17 +135,6 @@ public class JaggerTestExecutionBuilder extends Builder {
     }
 
     private void waitTestExecutionStarted(PrintStream logger, Long executionId) throws AbortException {
-        long timeout = Long.parseLong(executionStartTimeoutInSeconds);
-        if (timeout > 0) {
-            logger.println(format("Waiting %s seconds before test starts...", timeout));
-            try {
-                TimeUnit.SECONDS.sleep(timeout);
-            } catch (InterruptedException e) {
-                logger.println();
-                throw new AbortException("Error occurred while waiting Test execution to start: " + e.getMessage());
-            }
-        }
-
         TestExecutionStatus executionStatus = PENDING;
         while (executionStatus == PENDING) {
             executionStatus = pollExecutionStatus(logger, executionId);
