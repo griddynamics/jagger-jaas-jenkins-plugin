@@ -142,13 +142,13 @@ public class JaggerTestExecutionBuilder extends Builder {
                 TimeUnit.SECONDS.sleep(STATUS_POLLING_TIMEOUT_IN_SECONDS);
             } catch (InterruptedException e) {
                 logger.println();
-                throw new AbortException("Error occurred while waiting Test execution to start: " + e.getMessage());
+                throw new AbortException(format("Error occurred while waiting Test execution with id=%s to start: %s", executionId, e.getMessage()));
             }
         }
 
         if (executionStatus == TIMEOUT) {
             logger.println();
-            throw new AbortException("Test execution cancelled by timeout.");
+            throw new AbortException(format("Test execution with id=%s cancelled by timeout.", executionId));
         }
     }
 
@@ -160,17 +160,17 @@ public class JaggerTestExecutionBuilder extends Builder {
                 TimeUnit.SECONDS.sleep(STATUS_POLLING_TIMEOUT_IN_SECONDS);
             } catch (InterruptedException e) {
                 logger.println();
-                throw new AbortException("Error occurred while waiting Test execution to finish: " + e.getMessage());
+                throw new AbortException(format("Error occurred while waiting Test execution with id=%s to finish: %s", executionId, e.getMessage()));
             }
         } while (executionStatus == RUNNING);
 
-        logger.println("Test execution successfully finished!");
+        logger.println(format("Test execution with id=%s successfully finished!", executionId));
     }
 
     private TestExecutionStatus pollExecutionStatus(PrintStream logger, Long executionId) throws AbortException {
         TestExecutionStatus executionStatus;
         try {
-            logger.print("Polling test execution status... ");
+            logger.print(format("Polling status of test execution with id=%s ... ", executionId));
             RequestEntity<?> requestEntity = RequestEntity.get(new URI(jaasEndpoint + "/executions/" + executionId)).build();
             ResponseEntity<TestExecutionEntity> responseEntity = restTemplate.exchange(requestEntity, TestExecutionEntity.class);
             executionStatus = responseEntity.getBody().getStatus();
@@ -180,7 +180,7 @@ public class JaggerTestExecutionBuilder extends Builder {
             throw new AbortException("Invalid JaaS endpoint URL: " + e.getMessage());
         } catch (RestClientException ex) {
             logger.println();
-            throw new AbortException("Error occurred while polling Test execution status: " + ex.getMessage());
+            throw new AbortException(format("Error occurred while polling status of Test execution with id=%s: %s", executionId, ex.getMessage()));
         }
         return executionStatus;
     }
