@@ -20,9 +20,7 @@
         <java.level>8</java.level>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <httpcomponents.version>4.5.1</httpcomponents.version>
-        <script-security.version>1.24</script-security.version>
         <jenkins.version>2.19.4</jenkins.version>
-        <jenkins-test-harness.version>2.17</jenkins-test-harness.version>
         <jaas-client.version>2.0-SNAPSHOT</jaas-client.version>
         <spring-web.version>4.3.4.RELEASE</spring-web.version>
         <jackson-databind.version>2.8.1</jackson-databind.version>
@@ -97,11 +95,6 @@
     </distributionManagement>
 
     <dependencies>
-        <dependency>
-            <groupId>org.jenkins-ci.plugins</groupId>
-            <artifactId>script-security</artifactId>
-            <version>${script-security.version}</version>
-        </dependency>
         <dependency>
             <groupId>com.griddynamics.jagger</groupId>
             <artifactId>jaas-client</artifactId>
