@@ -41,7 +41,6 @@ public class JaggerTestExecutionBuilder extends Builder {
     private final String loadScenarioId;
     private final String executionStartTimeoutInSeconds;
 
-
     // Fields in config.jelly must match the parameter names in the "DataBoundConstructor"
     @DataBoundConstructor
     public JaggerTestExecutionBuilder(String jaasEndpoint, String testProjectUrl, String envId, String loadScenarioId,
