@@ -4,8 +4,10 @@ import com.griddynamics.jagger.jaas.storage.model.TestExecutionEntity;
 import com.griddynamics.jagger.jaas.storage.model.TestExecutionEntity.TestExecutionStatus;
 import com.griddynamics.jagger.jenkins.jaas.plugin.util.JaggerTestExecutionValidation;
 import hudson.AbortException;
+import hudson.EnvVars;
 import hudson.Extension;
 import hudson.Launcher;
+import hudson.Util;
 import hudson.model.AbstractBuild;
 import hudson.model.AbstractProject;
 import hudson.model.BuildListener;
@@ -13,6 +15,7 @@ import hudson.model.TaskListener;
 import hudson.tasks.BuildStepDescriptor;
 import hudson.tasks.Builder;
 import hudson.util.FormValidation;
+import hudson.util.VariableResolver;
 import org.apache.commons.lang.StringUtils;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.QueryParameter;
@@ -26,20 +29,22 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static com.griddynamics.jagger.jaas.storage.model.TestExecutionEntity.TestExecutionStatus.PENDING;
-import static com.griddynamics.jagger.jaas.storage.model.TestExecutionEntity.TestExecutionStatus.RUNNING;
-import static com.griddynamics.jagger.jaas.storage.model.TestExecutionEntity.TestExecutionStatus.TIMEOUT;
+import static com.griddynamics.jagger.jaas.storage.model.TestExecutionEntity.TestExecutionStatus.*;
 import static java.lang.String.format;
+import static org.apache.commons.lang.StringUtils.contains;
+import static org.apache.commons.lang.StringUtils.isNotEmpty;
+import static org.apache.commons.lang.StringUtils.startsWith;
 
 public class JaggerTestExecutionBuilder extends Builder {
     private static final int STATUS_POLLING_TIMEOUT_IN_SECONDS = 5;
-    private final String jaasEndpoint;
-    private final String testProjectUrl;
-    private final String envId;
-    private final String loadScenarioId;
-    private final String executionStartTimeoutInSeconds;
+    private String jaasEndpoint;
+    private String testProjectUrl;
+    private String envId;
+    private String loadScenarioId;
+    private String executionStartTimeoutInSeconds;
 
     // Fields in config.jelly must match the parameter names in the "DataBoundConstructor"
     @DataBoundConstructor
@@ -74,8 +79,37 @@ public class JaggerTestExecutionBuilder extends Builder {
 
     @Override
     public boolean perform(AbstractBuild<?, ?> build, Launcher launcher, BuildListener listener) throws InterruptedException, IOException {
+        parseBuildParams(build, listener);
         startTestExecution(listener);
         return true;
+    }
+
+    private void parseBuildParams(AbstractBuild<?, ?> build, BuildListener listener) throws IOException, InterruptedException {
+        final EnvVars envVars = build.getEnvironment(listener);
+        final VariableResolver<String> buildVariableResolver = build.getBuildVariableResolver();
+
+        String evaluatedJaasEndpoint = evaluate(jaasEndpoint, buildVariableResolver, envVars);
+        if (contains(jaasEndpoint, '$') && isNotEmpty(evaluatedJaasEndpoint))
+            this.jaasEndpoint = evaluatedJaasEndpoint;
+
+        String evaluatedTestProjectUrl = evaluate(testProjectUrl, buildVariableResolver, envVars);
+        if (contains(testProjectUrl, '$') && isNotEmpty(evaluatedTestProjectUrl))
+            this.testProjectUrl = evaluatedTestProjectUrl;
+
+        String evaluatedEnvId = evaluate(envId, buildVariableResolver, envVars);
+        if (contains(envId, '$') && isNotEmpty(evaluatedEnvId))
+            this.envId = evaluatedEnvId;
+
+        String evaluatedLoadScenarioId = evaluate(loadScenarioId, buildVariableResolver, envVars);
+        if (contains(loadScenarioId, '$') && isNotEmpty(evaluatedLoadScenarioId))
+            this.loadScenarioId = evaluatedLoadScenarioId;
+
+        String evaluatedTimeout = evaluate(executionStartTimeoutInSeconds, buildVariableResolver, envVars);
+        if (contains(executionStartTimeoutInSeconds, '$') && isNotEmpty(evaluatedTimeout))
+            this.executionStartTimeoutInSeconds = evaluatedTimeout;
+    }
+    private String evaluate(String value, VariableResolver<String> vars, Map<String, String> env) {
+        return Util.replaceMacro(Util.replaceMacro(value, vars), env);
     }
 
     public void startTestExecution(TaskListener listener) throws InterruptedException, IOException {
@@ -204,10 +238,16 @@ public class JaggerTestExecutionBuilder extends Builder {
         }
 
         public FormValidation doCheckJaasEndpoint(@QueryParameter String value) throws IOException, ServletException {
+            if(startsWith(value, "$")) {
+                return FormValidation.ok();
+            }
             return JaggerTestExecutionValidation.checkUrl(value);
         }
 
         public FormValidation doCheckTestProjectUrl(@QueryParameter String value) throws IOException, ServletException {
+            if(startsWith(value, "$")) {
+                return FormValidation.ok();
+            }
             if (StringUtils.isEmpty(value)) {
                 return FormValidation.ok();
             }
@@ -215,6 +255,9 @@ public class JaggerTestExecutionBuilder extends Builder {
         }
 
         public FormValidation doCheckEnvId(@QueryParameter String value) throws IOException, ServletException {
+            if(startsWith(value, "$")) {
+                return FormValidation.ok();
+            }
             if (StringUtils.isEmpty(value)) {
                 return FormValidation.error("Environment ID is mandatory!");
             }
@@ -222,6 +265,9 @@ public class JaggerTestExecutionBuilder extends Builder {
         }
 
         public FormValidation doCheckExecutionStartTimeoutInSeconds(@QueryParameter String value) throws IOException, ServletException {
+            if(startsWith(value, "$")) {
+                return FormValidation.ok();
+            }
             return JaggerTestExecutionValidation.checkExecutionStartTimeoutInSeconds(value);
         }
     }
