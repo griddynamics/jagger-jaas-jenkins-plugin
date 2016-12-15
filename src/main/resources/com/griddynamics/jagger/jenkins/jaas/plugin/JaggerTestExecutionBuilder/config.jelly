@@ -1,18 +1,18 @@
 <?jelly escape-by-default='true'?>
 <j:jelly xmlns:j="jelly:core" xmlns:f="/lib/form">
-    <f:entry field="jaasEndpoint" title="JaaS endpoint" help="/plugin/jaas-jenkins-plugin/help-jaasEndpoint.html">
+    <f:entry field="jaasEndpoint" title="JaaS endpoint" help="/plugin/jagger-jaas-jenkins-plugin/help-jaasEndpoint.html">
         <f:textbox />
     </f:entry>
-    <f:entry field="testProjectUrl" title="Test project URL" help="/plugin/jaas-jenkins-plugin/help-testProjectUrl.html">
+    <f:entry field="testProjectUrl" title="Test project URL" help="/plugin/jagger-jaas-jenkins-plugin/help-testProjectUrl.html">
         <f:textbox />
     </f:entry>
-    <f:entry field="envId" title="Jagger environment ID" help="/plugin/jaas-jenkins-plugin/help-envId.html">
+    <f:entry field="envId" title="Jagger environment ID" help="/plugin/jagger-jaas-jenkins-plugin/help-envId.html">
         <f:textbox />
     </f:entry>
-    <f:entry field="loadScenarioId" title="Load scenario ID" help="/plugin/jaas-jenkins-plugin/help-loadScenarioId.html">
+    <f:entry field="loadScenarioId" title="Load scenario ID" help="/plugin/jagger-jaas-jenkins-plugin/help-loadScenarioId.html">
         <f:textbox />
     </f:entry>
-    <f:entry field="executionStartTimeoutInSeconds" title="Execution start timeout in seconds" help="/plugin/jaas-jenkins-plugin/help-executionStartTimeoutInSeconds.html">
+    <f:entry field="executionStartTimeoutInSeconds" title="Execution start timeout in seconds" help="/plugin/jagger-jaas-jenkins-plugin/help-executionStartTimeoutInSeconds.html">
         <f:textbox />
     </f:entry>
 </j:jelly>
