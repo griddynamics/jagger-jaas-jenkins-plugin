@@ -15,7 +15,7 @@ public class JaggerTestExecutionValidation {
             new URL(value);
             return FormValidation.ok();
         } catch (MalformedURLException ex) {
-            return FormValidation.error("Invalid url");
+            return FormValidation.error("Invalid url: " + ex.getMessage());
         }
     }
 
