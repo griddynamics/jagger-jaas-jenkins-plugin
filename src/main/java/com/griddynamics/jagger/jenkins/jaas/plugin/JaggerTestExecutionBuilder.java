@@ -32,19 +32,29 @@ import java.net.URISyntaxException;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static com.griddynamics.jagger.jaas.storage.model.TestExecutionEntity.TestExecutionStatus.*;
+import static com.griddynamics.jagger.jaas.storage.model.TestExecutionEntity.TestExecutionStatus.PENDING;
+import static com.griddynamics.jagger.jaas.storage.model.TestExecutionEntity.TestExecutionStatus.RUNNING;
+import static com.griddynamics.jagger.jaas.storage.model.TestExecutionEntity.TestExecutionStatus.TIMEOUT;
 import static java.lang.String.format;
-import static org.apache.commons.lang.StringUtils.contains;
-import static org.apache.commons.lang.StringUtils.isNotEmpty;
 import static org.apache.commons.lang.StringUtils.startsWith;
 
 public class JaggerTestExecutionBuilder extends Builder {
     private static final int STATUS_POLLING_TIMEOUT_IN_SECONDS = 5;
-    private String jaasEndpoint;
-    private String testProjectUrl;
-    private String envId;
-    private String loadScenarioId;
-    private String executionStartTimeoutInSeconds;
+    private final String jaasEndpoint;
+    private final String testProjectUrl;
+    private final String envId;
+    private final String loadScenarioId;
+    private final String executionStartTimeoutInSeconds;
+
+    /*  When using dynamic build parameters constructor is called only the first time,
+        that's why these evaluated parameters are needed. They are evaluated on every execution
+        and must be cleared before every execution.
+    */
+    private String evaluatedJaasEndpoint;
+    private String evaluatedTestProjectUrl;
+    private String evaluatedEnvId;
+    private String evaluatedLoadScenarioId;
+    private String evaluatedTimeout;
 
     // Fields in config.jelly must match the parameter names in the "DataBoundConstructor"
     @DataBoundConstructor
@@ -88,26 +98,22 @@ public class JaggerTestExecutionBuilder extends Builder {
         final EnvVars envVars = build.getEnvironment(listener);
         final VariableResolver<String> buildVariableResolver = build.getBuildVariableResolver();
 
-        String evaluatedJaasEndpoint = evaluate(jaasEndpoint, buildVariableResolver, envVars);
-        if (contains(jaasEndpoint, '$') && isNotEmpty(evaluatedJaasEndpoint))
-            this.jaasEndpoint = evaluatedJaasEndpoint;
-
-        String evaluatedTestProjectUrl = evaluate(testProjectUrl, buildVariableResolver, envVars);
-        if (contains(testProjectUrl, '$') && isNotEmpty(evaluatedTestProjectUrl))
-            this.testProjectUrl = evaluatedTestProjectUrl;
-
-        String evaluatedEnvId = evaluate(envId, buildVariableResolver, envVars);
-        if (contains(envId, '$') && isNotEmpty(evaluatedEnvId))
-            this.envId = evaluatedEnvId;
-
-        String evaluatedLoadScenarioId = evaluate(loadScenarioId, buildVariableResolver, envVars);
-        if (contains(loadScenarioId, '$') && isNotEmpty(evaluatedLoadScenarioId))
-            this.loadScenarioId = evaluatedLoadScenarioId;
-
-        String evaluatedTimeout = evaluate(executionStartTimeoutInSeconds, buildVariableResolver, envVars);
-        if (contains(executionStartTimeoutInSeconds, '$') && isNotEmpty(evaluatedTimeout))
-            this.executionStartTimeoutInSeconds = evaluatedTimeout;
+        clearEvaluated();
+        evaluatedJaasEndpoint = evaluate(jaasEndpoint, buildVariableResolver, envVars);
+        evaluatedTestProjectUrl = evaluate(testProjectUrl, buildVariableResolver, envVars);
+        evaluatedEnvId = evaluate(envId, buildVariableResolver, envVars);
+        evaluatedLoadScenarioId = evaluate(loadScenarioId, buildVariableResolver, envVars);
+        evaluatedTimeout = evaluate(executionStartTimeoutInSeconds, buildVariableResolver, envVars);
     }
+
+    private void clearEvaluated() {
+        evaluatedJaasEndpoint = null;
+        evaluatedEnvId = null;
+        evaluatedLoadScenarioId = null;
+        evaluatedTestProjectUrl = null;
+        evaluatedTimeout = null;
+    }
+
     private String evaluate(String value, VariableResolver<String> vars, Map<String, String> env) {
         return Util.replaceMacro(Util.replaceMacro(value, vars), env);
     }
@@ -129,32 +135,32 @@ public class JaggerTestExecutionBuilder extends Builder {
         waitTestExecutionFinished(logger, sentExecution.getId(), restTemplate);
 
         logger.println("\n\nJagger JaaS Jenkins Plugin Step 5: Publishing Test execution results...");
-        logger.println("Test execution report can be found by the link " + jaasEndpoint + "/report?sessionId=valid-session-id");
+        logger.println("Test execution report can be found by the link " + evaluatedJaasEndpoint + "/report?sessionId=valid-session-id");
     }
 
     private TestExecutionEntity createTestExecution(PrintStream logger) {
         TestExecutionEntity testExecutionEntity = new TestExecutionEntity();
-        testExecutionEntity.setEnvId(envId);
-        testExecutionEntity.setLoadScenarioId(loadScenarioId);
-        if (StringUtils.isNotEmpty(executionStartTimeoutInSeconds))
-            testExecutionEntity.setExecutionStartTimeoutInSeconds(Long.parseLong(executionStartTimeoutInSeconds));
-        testExecutionEntity.setTestProjectURL(testProjectUrl);
+        testExecutionEntity.setEnvId(evaluatedEnvId);
+        testExecutionEntity.setLoadScenarioId(evaluatedLoadScenarioId);
+        if (StringUtils.isNotEmpty(evaluatedTimeout))
+            testExecutionEntity.setExecutionStartTimeoutInSeconds(Long.parseLong(evaluatedTimeout));
+        testExecutionEntity.setTestProjectURL(evaluatedTestProjectUrl);
 
-        logger.println(format("JaaS endpoint: %s", jaasEndpoint));
+        logger.println(format("JaaS endpoint: %s", evaluatedJaasEndpoint));
         logger.println("Test execution properties:");
-        logger.println(format("    Environment ID: %s", envId));
-        if (StringUtils.isNotEmpty(loadScenarioId))
-            logger.println(format("    Load scenario ID: %s", loadScenarioId));
-        if (StringUtils.isNotEmpty(testProjectUrl))
-            logger.println(format("    Test project URL: %s", testProjectUrl));
-        if (StringUtils.isNotEmpty(executionStartTimeoutInSeconds))
-            logger.println(format("    Execution start timeout in seconds: %s", executionStartTimeoutInSeconds));
+        logger.println(format("    Environment ID: %s", evaluatedEnvId));
+        if (StringUtils.isNotEmpty(evaluatedLoadScenarioId))
+            logger.println(format("    Load scenario ID: %s", evaluatedLoadScenarioId));
+        if (StringUtils.isNotEmpty(evaluatedTestProjectUrl))
+            logger.println(format("    Test project URL: %s", evaluatedTestProjectUrl));
+        if (StringUtils.isNotEmpty(evaluatedTimeout))
+            logger.println(format("    Execution start timeout in seconds: %s", evaluatedTimeout));
         return testExecutionEntity;
     }
 
     private TestExecutionEntity sendTestExecutionToJaas(PrintStream logger, TestExecutionEntity testExecutionEntity, RestTemplate restTemplate) throws AbortException {
         try {
-            RequestEntity<TestExecutionEntity> requestEntity = RequestEntity.post(new URI(jaasEndpoint + "/executions")).body(testExecutionEntity);
+            RequestEntity<TestExecutionEntity> requestEntity = RequestEntity.post(new URI(evaluatedJaasEndpoint + "/executions")).body(testExecutionEntity);
             ResponseEntity<TestExecutionEntity> responseEntity = restTemplate.exchange(requestEntity, TestExecutionEntity.class);
             logger.println("Request successfully sent!\n");
             logger.println("Response status: " + responseEntity.getStatusCodeValue());
@@ -206,7 +212,7 @@ public class JaggerTestExecutionBuilder extends Builder {
         TestExecutionStatus executionStatus;
         try {
             logger.print(format("Polling status of test execution with id=%s ... ", executionId));
-            RequestEntity<?> requestEntity = RequestEntity.get(new URI(jaasEndpoint + "/executions/" + executionId)).build();
+            RequestEntity<?> requestEntity = RequestEntity.get(new URI(evaluatedJaasEndpoint + "/executions/" + executionId)).build();
             ResponseEntity<TestExecutionEntity> responseEntity = restTemplate.exchange(requestEntity, TestExecutionEntity.class);
             executionStatus = responseEntity.getBody().getStatus();
             logger.println(executionStatus);
