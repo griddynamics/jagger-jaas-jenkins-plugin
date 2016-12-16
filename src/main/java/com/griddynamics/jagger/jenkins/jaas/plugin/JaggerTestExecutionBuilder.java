@@ -4,8 +4,10 @@ import com.griddynamics.jagger.jaas.storage.model.TestExecutionEntity;
 import com.griddynamics.jagger.jaas.storage.model.TestExecutionEntity.TestExecutionStatus;
 import com.griddynamics.jagger.jenkins.jaas.plugin.util.JaggerTestExecutionValidation;
 import hudson.AbortException;
+import hudson.EnvVars;
 import hudson.Extension;
 import hudson.Launcher;
+import hudson.Util;
 import hudson.model.AbstractBuild;
 import hudson.model.AbstractProject;
 import hudson.model.BuildListener;
@@ -13,6 +15,7 @@ import hudson.model.TaskListener;
 import hudson.tasks.BuildStepDescriptor;
 import hudson.tasks.Builder;
 import hudson.util.FormValidation;
+import hudson.util.VariableResolver;
 import org.apache.commons.lang.StringUtils;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.QueryParameter;
@@ -26,12 +29,14 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static com.griddynamics.jagger.jaas.storage.model.TestExecutionEntity.TestExecutionStatus.PENDING;
 import static com.griddynamics.jagger.jaas.storage.model.TestExecutionEntity.TestExecutionStatus.RUNNING;
 import static com.griddynamics.jagger.jaas.storage.model.TestExecutionEntity.TestExecutionStatus.TIMEOUT;
 import static java.lang.String.format;
+import static org.apache.commons.lang.StringUtils.startsWith;
 
 public class JaggerTestExecutionBuilder extends Builder {
     private static final int STATUS_POLLING_TIMEOUT_IN_SECONDS = 5;
@@ -41,7 +46,15 @@ public class JaggerTestExecutionBuilder extends Builder {
     private final String loadScenarioId;
     private final String executionStartTimeoutInSeconds;
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    /*  When using dynamic build parameters constructor is called only the first time,
+        that's why these evaluated parameters are needed. They are evaluated on every execution
+        and must be cleared before every execution.
+    */
+    private String evaluatedJaasEndpoint;
+    private String evaluatedTestProjectUrl;
+    private String evaluatedEnvId;
+    private String evaluatedLoadScenarioId;
+    private String evaluatedTimeout;
 
     // Fields in config.jelly must match the parameter names in the "DataBoundConstructor"
     @DataBoundConstructor
@@ -76,50 +89,78 @@ public class JaggerTestExecutionBuilder extends Builder {
 
     @Override
     public boolean perform(AbstractBuild<?, ?> build, Launcher launcher, BuildListener listener) throws InterruptedException, IOException {
+        parseBuildParams(build, listener);
         startTestExecution(listener);
         return true;
     }
 
+    private void parseBuildParams(AbstractBuild<?, ?> build, BuildListener listener) throws IOException, InterruptedException {
+        final EnvVars envVars = build.getEnvironment(listener);
+        final VariableResolver<String> buildVariableResolver = build.getBuildVariableResolver();
+
+        clearEvaluated();
+        evaluatedJaasEndpoint = evaluate(jaasEndpoint, buildVariableResolver, envVars);
+        evaluatedTestProjectUrl = evaluate(testProjectUrl, buildVariableResolver, envVars);
+        evaluatedEnvId = evaluate(envId, buildVariableResolver, envVars);
+        evaluatedLoadScenarioId = evaluate(loadScenarioId, buildVariableResolver, envVars);
+        evaluatedTimeout = evaluate(executionStartTimeoutInSeconds, buildVariableResolver, envVars);
+    }
+
+    private void clearEvaluated() {
+        evaluatedJaasEndpoint = null;
+        evaluatedEnvId = null;
+        evaluatedLoadScenarioId = null;
+        evaluatedTestProjectUrl = null;
+        evaluatedTimeout = null;
+    }
+
+    private String evaluate(String value, VariableResolver<String> vars, Map<String, String> env) {
+        return Util.replaceMacro(Util.replaceMacro(value, vars), env);
+    }
+
     public void startTestExecution(TaskListener listener) throws InterruptedException, IOException {
+        final RestTemplate restTemplate = new RestTemplate();
         final PrintStream logger = listener.getLogger();
 
         logger.println("\n\nJagger JaaS Jenkins Plugin Step 1: Creating TestExecution request...");
         TestExecutionEntity testExecutionEntity = createTestExecution(logger);
 
         logger.println("\n\nJagger JaaS Jenkins Plugin Step 2: Sending request to JaaS...");
-        TestExecutionEntity sentExecution = sendTestExecutionToJaas(logger, testExecutionEntity);
+        TestExecutionEntity sentExecution = sendTestExecutionToJaas(logger, testExecutionEntity, restTemplate);
 
         logger.println("\n\nJagger JaaS Jenkins Plugin Step 3: Waiting test to start execution...");
-        waitTestExecutionStarted(logger, sentExecution.getId());
+        waitTestExecutionStarted(logger, sentExecution.getId(), restTemplate);
 
         logger.println("\n\nJagger JaaS Jenkins Plugin Step 4: Waiting test to finish execution...");
-        waitTestExecutionFinished(logger, sentExecution.getId());
+        waitTestExecutionFinished(logger, sentExecution.getId(), restTemplate);
 
         logger.println("\n\nJagger JaaS Jenkins Plugin Step 5: Publishing Test execution results...");
-        logger.println("Test execution report can be found by the link " + jaasEndpoint + "/report?sessionId=valid-session-id");
+        logger.println("Test execution report can be found by the link " + evaluatedJaasEndpoint + "/report?sessionId=valid-session-id");
     }
 
     private TestExecutionEntity createTestExecution(PrintStream logger) {
         TestExecutionEntity testExecutionEntity = new TestExecutionEntity();
-        testExecutionEntity.setEnvId(envId);
-        testExecutionEntity.setLoadScenarioId(loadScenarioId);
-        testExecutionEntity.setExecutionStartTimeoutInSeconds(Long.parseLong(executionStartTimeoutInSeconds));
-        testExecutionEntity.setTestProjectURL(testProjectUrl);
+        testExecutionEntity.setEnvId(evaluatedEnvId);
+        testExecutionEntity.setLoadScenarioId(evaluatedLoadScenarioId);
+        if (StringUtils.isNotEmpty(evaluatedTimeout))
+            testExecutionEntity.setExecutionStartTimeoutInSeconds(Long.parseLong(evaluatedTimeout));
+        testExecutionEntity.setTestProjectURL(evaluatedTestProjectUrl);
 
-        logger.println(format("JaaS endpoint: %s", jaasEndpoint));
+        logger.println(format("JaaS endpoint: %s", evaluatedJaasEndpoint));
         logger.println("Test execution properties:");
-        logger.println(format("    Environment ID: %s", envId));
-        if (StringUtils.isNotEmpty(loadScenarioId))
-            logger.println(format("    Load scenario ID: %s", loadScenarioId));
-        if (StringUtils.isNotEmpty(testProjectUrl))
-            logger.println(format("    Test project URL: %s", testProjectUrl));
-        logger.println(format("    Execution start timeout in seconds: %s", executionStartTimeoutInSeconds));
+        logger.println(format("    Environment ID: %s", evaluatedEnvId));
+        if (StringUtils.isNotEmpty(evaluatedLoadScenarioId))
+            logger.println(format("    Load scenario ID: %s", evaluatedLoadScenarioId));
+        if (StringUtils.isNotEmpty(evaluatedTestProjectUrl))
+            logger.println(format("    Test project URL: %s", evaluatedTestProjectUrl));
+        if (StringUtils.isNotEmpty(evaluatedTimeout))
+            logger.println(format("    Execution start timeout in seconds: %s", evaluatedTimeout));
         return testExecutionEntity;
     }
 
-    private TestExecutionEntity sendTestExecutionToJaas(PrintStream logger, TestExecutionEntity testExecutionEntity) throws AbortException {
+    private TestExecutionEntity sendTestExecutionToJaas(PrintStream logger, TestExecutionEntity testExecutionEntity, RestTemplate restTemplate) throws AbortException {
         try {
-            RequestEntity<TestExecutionEntity> requestEntity = RequestEntity.post(new URI(jaasEndpoint + "/executions")).body(testExecutionEntity);
+            RequestEntity<TestExecutionEntity> requestEntity = RequestEntity.post(new URI(evaluatedJaasEndpoint + "/executions")).body(testExecutionEntity);
             ResponseEntity<TestExecutionEntity> responseEntity = restTemplate.exchange(requestEntity, TestExecutionEntity.class);
             logger.println("Request successfully sent!\n");
             logger.println("Response status: " + responseEntity.getStatusCodeValue());
@@ -134,10 +175,10 @@ public class JaggerTestExecutionBuilder extends Builder {
         }
     }
 
-    private void waitTestExecutionStarted(PrintStream logger, Long executionId) throws AbortException {
+    private void waitTestExecutionStarted(PrintStream logger, Long executionId, RestTemplate restTemplate) throws AbortException {
         TestExecutionStatus executionStatus = PENDING;
         while (executionStatus == PENDING) {
-            executionStatus = pollExecutionStatus(logger, executionId);
+            executionStatus = pollExecutionStatus(logger, executionId, restTemplate);
             try {
                 TimeUnit.SECONDS.sleep(STATUS_POLLING_TIMEOUT_IN_SECONDS);
             } catch (InterruptedException e) {
@@ -152,10 +193,10 @@ public class JaggerTestExecutionBuilder extends Builder {
         }
     }
 
-    private void waitTestExecutionFinished(PrintStream logger, Long executionId) throws AbortException {
+    private void waitTestExecutionFinished(PrintStream logger, Long executionId, RestTemplate restTemplate) throws AbortException {
         TestExecutionStatus executionStatus;
         do {
-            executionStatus = pollExecutionStatus(logger, executionId);
+            executionStatus = pollExecutionStatus(logger, executionId, restTemplate);
             try {
                 TimeUnit.SECONDS.sleep(STATUS_POLLING_TIMEOUT_IN_SECONDS);
             } catch (InterruptedException e) {
@@ -167,11 +208,11 @@ public class JaggerTestExecutionBuilder extends Builder {
         logger.println(format("Test execution with id=%s successfully finished!", executionId));
     }
 
-    private TestExecutionStatus pollExecutionStatus(PrintStream logger, Long executionId) throws AbortException {
+    private TestExecutionStatus pollExecutionStatus(PrintStream logger, Long executionId, RestTemplate restTemplate) throws AbortException {
         TestExecutionStatus executionStatus;
         try {
             logger.print(format("Polling status of test execution with id=%s ... ", executionId));
-            RequestEntity<?> requestEntity = RequestEntity.get(new URI(jaasEndpoint + "/executions/" + executionId)).build();
+            RequestEntity<?> requestEntity = RequestEntity.get(new URI(evaluatedJaasEndpoint + "/executions/" + executionId)).build();
             ResponseEntity<TestExecutionEntity> responseEntity = restTemplate.exchange(requestEntity, TestExecutionEntity.class);
             executionStatus = responseEntity.getBody().getStatus();
             logger.println(executionStatus);
@@ -203,10 +244,16 @@ public class JaggerTestExecutionBuilder extends Builder {
         }
 
         public FormValidation doCheckJaasEndpoint(@QueryParameter String value) throws IOException, ServletException {
+            if(startsWith(value, "$")) {
+                return FormValidation.ok();
+            }
             return JaggerTestExecutionValidation.checkUrl(value);
         }
 
         public FormValidation doCheckTestProjectUrl(@QueryParameter String value) throws IOException, ServletException {
+            if(startsWith(value, "$")) {
+                return FormValidation.ok();
+            }
             if (StringUtils.isEmpty(value)) {
                 return FormValidation.ok();
             }
@@ -214,6 +261,9 @@ public class JaggerTestExecutionBuilder extends Builder {
         }
 
         public FormValidation doCheckEnvId(@QueryParameter String value) throws IOException, ServletException {
+            if(startsWith(value, "$")) {
+                return FormValidation.ok();
+            }
             if (StringUtils.isEmpty(value)) {
                 return FormValidation.error("Environment ID is mandatory!");
             }
@@ -221,6 +271,9 @@ public class JaggerTestExecutionBuilder extends Builder {
         }
 
         public FormValidation doCheckExecutionStartTimeoutInSeconds(@QueryParameter String value) throws IOException, ServletException {
+            if(startsWith(value, "$")) {
+                return FormValidation.ok();
+            }
             return JaggerTestExecutionValidation.checkExecutionStartTimeoutInSeconds(value);
         }
     }
