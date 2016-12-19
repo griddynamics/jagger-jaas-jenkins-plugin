@@ -115,7 +115,8 @@ public class JaggerTestExecutionBuilder extends Builder {
     }
 
     private String evaluate(String value, VariableResolver<String> vars, Map<String, String> env) {
-        return Util.replaceMacro(Util.replaceMacro(value, vars), env);
+        String evaluated = Util.replaceMacro(Util.replaceMacro(value, vars), env);
+        return StringUtils.isNotBlank(evaluated) ? evaluated : null;
     }
 
     public void startTestExecution(TaskListener listener) throws InterruptedException, IOException {
@@ -244,14 +245,14 @@ public class JaggerTestExecutionBuilder extends Builder {
         }
 
         public FormValidation doCheckJaasEndpoint(@QueryParameter String value) throws IOException, ServletException {
-            if(startsWith(value, "$")) {
+            if (startsWith(value, "$")) {
                 return FormValidation.ok();
             }
             return JaggerTestExecutionValidation.checkUrl(value);
         }
 
         public FormValidation doCheckTestProjectUrl(@QueryParameter String value) throws IOException, ServletException {
-            if(startsWith(value, "$")) {
+            if (startsWith(value, "$")) {
                 return FormValidation.ok();
             }
             if (StringUtils.isEmpty(value)) {
@@ -261,7 +262,7 @@ public class JaggerTestExecutionBuilder extends Builder {
         }
 
         public FormValidation doCheckEnvId(@QueryParameter String value) throws IOException, ServletException {
-            if(startsWith(value, "$")) {
+            if (startsWith(value, "$")) {
                 return FormValidation.ok();
             }
             if (StringUtils.isEmpty(value)) {
@@ -271,7 +272,7 @@ public class JaggerTestExecutionBuilder extends Builder {
         }
 
         public FormValidation doCheckExecutionStartTimeoutInSeconds(@QueryParameter String value) throws IOException, ServletException {
-            if(startsWith(value, "$")) {
+            if (startsWith(value, "$")) {
                 return FormValidation.ok();
             }
             return JaggerTestExecutionValidation.checkExecutionStartTimeoutInSeconds(value);
