@@ -136,7 +136,11 @@ public class JaggerTestExecutionBuilder extends Builder {
         TestExecutionEntity executionFinished = waitTestExecutionFinished(logger, sentExecution.getId(), restTemplate);
 
         logger.println("\n\nJagger JaaS Jenkins Plugin Step 5: Publishing Test execution results...");
-        logger.println("Test execution report can be found by the link " + evaluatedJaasEndpoint + "/report?sessionId=" + executionFinished.getSessionId());
+
+        if (executionFinished.getSessionId() == null)
+            logger.println("sessionId is unavailable. Can’t publish link to the test report.");
+        else
+            logger.println("Test execution report can be found by the link " + evaluatedJaasEndpoint + "/report?sessionId=" + executionFinished.getSessionId());
     }
 
     private TestExecutionEntity createTestExecution(PrintStream logger) {
