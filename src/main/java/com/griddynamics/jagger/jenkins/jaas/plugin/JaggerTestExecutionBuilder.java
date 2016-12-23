@@ -32,6 +32,8 @@ import java.net.URISyntaxException;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static com.griddynamics.jagger.jaas.storage.model.TestExecutionEntity.TestExecutionStatus.COMPLETED;
+import static com.griddynamics.jagger.jaas.storage.model.TestExecutionEntity.TestExecutionStatus.FAILED;
 import static com.griddynamics.jagger.jaas.storage.model.TestExecutionEntity.TestExecutionStatus.PENDING;
 import static com.griddynamics.jagger.jaas.storage.model.TestExecutionEntity.TestExecutionStatus.RUNNING;
 import static com.griddynamics.jagger.jaas.storage.model.TestExecutionEntity.TestExecutionStatus.TIMEOUT;
@@ -213,7 +215,11 @@ public class JaggerTestExecutionBuilder extends Builder {
             }
         } while (executionStatus == RUNNING);
 
-        logger.println(format("Test execution with id=%s successfully finished!", executionId));
+        if (executionStatus == COMPLETED) {
+            logger.println(format("Test execution with id=%s successfully finished!", executionId));
+        } else if (executionStatus == FAILED) {
+            throw new AbortException(format("Test execution with id=%s finished with status FAILED!", executionId));
+        }
         return execution;
     }
 
