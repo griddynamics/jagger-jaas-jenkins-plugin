@@ -133,10 +133,10 @@ public class JaggerTestExecutionBuilder extends Builder {
         waitTestExecutionStarted(logger, sentExecution.getId(), restTemplate);
 
         logger.println("\n\nJagger JaaS Jenkins Plugin Step 4: Waiting test to finish execution...");
-        waitTestExecutionFinished(logger, sentExecution.getId(), restTemplate);
+        TestExecutionEntity executionFinished = waitTestExecutionFinished(logger, sentExecution.getId(), restTemplate);
 
         logger.println("\n\nJagger JaaS Jenkins Plugin Step 5: Publishing Test execution results...");
-        logger.println("Test execution report can be found by the link " + evaluatedJaasEndpoint + "/report?sessionId=valid-session-id");
+        logger.println("Test execution report can be found by the link " + evaluatedJaasEndpoint + "/report?sessionId=" + executionFinished.getSessionId());
     }
 
     private TestExecutionEntity createTestExecution(PrintStream logger) {
@@ -179,7 +179,8 @@ public class JaggerTestExecutionBuilder extends Builder {
     private void waitTestExecutionStarted(PrintStream logger, Long executionId, RestTemplate restTemplate) throws AbortException {
         TestExecutionStatus executionStatus = PENDING;
         while (executionStatus == PENDING) {
-            executionStatus = pollExecutionStatus(logger, executionId, restTemplate);
+            TestExecutionEntity execution = pollExecution(logger, executionId, restTemplate);
+            executionStatus = execution.getStatus();
             try {
                 TimeUnit.SECONDS.sleep(STATUS_POLLING_TIMEOUT_IN_SECONDS);
             } catch (InterruptedException e) {
@@ -194,10 +195,12 @@ public class JaggerTestExecutionBuilder extends Builder {
         }
     }
 
-    private void waitTestExecutionFinished(PrintStream logger, Long executionId, RestTemplate restTemplate) throws AbortException {
+    private TestExecutionEntity waitTestExecutionFinished(PrintStream logger, Long executionId, RestTemplate restTemplate) throws AbortException {
         TestExecutionStatus executionStatus;
+        TestExecutionEntity execution;
         do {
-            executionStatus = pollExecutionStatus(logger, executionId, restTemplate);
+            execution = pollExecution(logger, executionId, restTemplate);
+            executionStatus = execution.getStatus();
             try {
                 TimeUnit.SECONDS.sleep(STATUS_POLLING_TIMEOUT_IN_SECONDS);
             } catch (InterruptedException e) {
@@ -207,16 +210,17 @@ public class JaggerTestExecutionBuilder extends Builder {
         } while (executionStatus == RUNNING);
 
         logger.println(format("Test execution with id=%s successfully finished!", executionId));
+        return execution;
     }
 
-    private TestExecutionStatus pollExecutionStatus(PrintStream logger, Long executionId, RestTemplate restTemplate) throws AbortException {
-        TestExecutionStatus executionStatus;
+    private TestExecutionEntity pollExecution(PrintStream logger, Long executionId, RestTemplate restTemplate) throws AbortException {
+        TestExecutionEntity execution;
         try {
             logger.print(format("Polling status of test execution with id=%s ... ", executionId));
             RequestEntity<?> requestEntity = RequestEntity.get(new URI(evaluatedJaasEndpoint + "/executions/" + executionId)).build();
             ResponseEntity<TestExecutionEntity> responseEntity = restTemplate.exchange(requestEntity, TestExecutionEntity.class);
-            executionStatus = responseEntity.getBody().getStatus();
-            logger.println(executionStatus);
+            execution = responseEntity.getBody();
+            logger.println(execution.getStatus());
         } catch (URISyntaxException e) {
             logger.println();
             throw new AbortException("Invalid JaaS endpoint URL: " + e.getMessage());
@@ -224,7 +228,7 @@ public class JaggerTestExecutionBuilder extends Builder {
             logger.println();
             throw new AbortException(format("Error occurred while polling status of Test execution with id=%s: %s", executionId, ex.getMessage()));
         }
-        return executionStatus;
+        return execution;
     }
 
     @Extension
