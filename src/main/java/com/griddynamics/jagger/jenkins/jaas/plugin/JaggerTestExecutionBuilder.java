@@ -1,8 +1,12 @@
 package com.griddynamics.jagger.jenkins.jaas.plugin;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.griddynamics.jagger.dbapi.dto.DecisionPerSessionDto;
 import com.griddynamics.jagger.jaas.storage.model.TestExecutionEntity;
 import com.griddynamics.jagger.jaas.storage.model.TestExecutionEntity.TestExecutionStatus;
 import com.griddynamics.jagger.jenkins.jaas.plugin.util.JaggerTestExecutionValidation;
+import com.griddynamics.jagger.util.Decision;
 import hudson.AbortException;
 import hudson.EnvVars;
 import hudson.Extension;
@@ -138,11 +142,9 @@ public class JaggerTestExecutionBuilder extends Builder {
         TestExecutionEntity executionFinished = waitTestExecutionFinished(logger, sentExecution.getId(), restTemplate);
 
         logger.println("\n\nJagger JaaS Jenkins Plugin Step 5: Publishing Test execution results...");
+        publishReportLink(logger, executionFinished);
 
-        if (executionFinished.getSessionId() == null)
-            logger.println("sessionId is unavailable. Can’t publish link to the test report.");
-        else
-            logger.println("Test execution report can be found by the link " + evaluatedJaasEndpoint + "/report?sessionId=" + executionFinished.getSessionId());
+        checkDecision(logger, executionFinished.getSessionId(), restTemplate);
     }
 
     private TestExecutionEntity createTestExecution(PrintStream logger) {
@@ -221,6 +223,38 @@ public class JaggerTestExecutionBuilder extends Builder {
             throw new AbortException(format("Test execution with id=%s finished with status FAILED!", executionId));
         }
         return execution;
+    }
+
+    private void publishReportLink(PrintStream logger, TestExecutionEntity executionFinished) {
+        if (executionFinished.getSessionId() == null)
+            logger.println("sessionId is unavailable. Can’t publish link to the test report.");
+        else
+            logger.println("Test execution report can be found by the link " + evaluatedJaasEndpoint + "/report?sessionId=" + executionFinished.getSessionId());
+    }
+
+    private void checkDecision(PrintStream logger, String sessionId, RestTemplate restTemplate) throws AbortException {
+        try {
+            logger.println();
+            logger.println(format("Checking decision for test session with id=%s ... ", sessionId));
+            RequestEntity<?> requestEntity = RequestEntity.get(new URI(evaluatedJaasEndpoint + "/sessions/" + sessionId + "/decision")).build();
+            ResponseEntity<DecisionPerSessionDto> responseEntity = restTemplate.exchange(requestEntity, DecisionPerSessionDto.class);
+            Decision decision = responseEntity.getBody().getDecision();
+            logger.println(format("Decision for session with id=%s is %s", sessionId, decision));
+            if (decision != Decision.OK) {
+                String decisionJson = new ObjectMapper().writeValueAsString(responseEntity.getBody());
+                logger.println("Full session decision:\n" + decisionJson);
+                logger.println();
+                throw new AbortException(format("Test execution is failed due to session with id=%s finished with decision %s.", sessionId, decision));
+            }
+        } catch (URISyntaxException e) {
+            logger.println();
+            throw new AbortException("Invalid JaaS endpoint URL: " + e.getMessage());
+        } catch (RestClientException ex) {
+            logger.println();
+            throw new AbortException(format("Error occurred while checking decision of Test session with id=%s: %s", sessionId, ex.getMessage()));
+        } catch (JsonProcessingException e) {
+            logger.println("\nError occurred:" + e.getMessage());
+        }
     }
 
     private TestExecutionEntity pollExecution(PrintStream logger, Long executionId, RestTemplate restTemplate) throws AbortException {
