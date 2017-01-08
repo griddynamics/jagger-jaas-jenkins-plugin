@@ -238,11 +238,11 @@ public class JaggerTestExecutionBuilder extends Builder {
             logger.println(format("Checking decision for test session with id=%s ... ", sessionId));
             RequestEntity<?> requestEntity = RequestEntity.get(new URI(evaluatedJaasEndpoint + "/sessions/" + sessionId + "/decision")).build();
             ResponseEntity<DecisionPerSessionDto> responseEntity = restTemplate.exchange(requestEntity, DecisionPerSessionDto.class);
+            String decisionJson = new ObjectMapper().writeValueAsString(responseEntity.getBody());
+            logger.println("Full session decision:\n" + decisionJson);
             Decision decision = responseEntity.getBody().getDecision();
             logger.println(format("Decision for session with id=%s is %s", sessionId, decision));
             if (decision != Decision.OK) {
-                String decisionJson = new ObjectMapper().writeValueAsString(responseEntity.getBody());
-                logger.println("Full session decision:\n" + decisionJson);
                 logger.println();
                 throw new AbortException(format("Test execution is failed due to session with id=%s finished with decision %s.", sessionId, decision));
             }
@@ -253,7 +253,7 @@ public class JaggerTestExecutionBuilder extends Builder {
             logger.println();
             throw new AbortException(format("Error occurred while checking decision of Test session with id=%s: %s", sessionId, ex.getMessage()));
         } catch (JsonProcessingException e) {
-            logger.println("\nError occurred:" + e.getMessage());
+            logger.println("\nError occurred during decisions response parsing:" + e.getMessage());
         }
     }
 
