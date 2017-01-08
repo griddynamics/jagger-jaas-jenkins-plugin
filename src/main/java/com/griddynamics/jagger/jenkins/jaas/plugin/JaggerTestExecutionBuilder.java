@@ -138,11 +138,7 @@ public class JaggerTestExecutionBuilder extends Builder {
         TestExecutionEntity executionFinished = waitTestExecutionFinished(logger, sentExecution.getId(), restTemplate);
 
         logger.println("\n\nJagger JaaS Jenkins Plugin Step 5: Publishing Test execution results...");
-
-        if (executionFinished.getSessionId() == null)
-            logger.println("sessionId is unavailable. Can’t publish link to the test report.");
-        else
-            logger.println("Test execution report can be found by the link " + evaluatedJaasEndpoint + "/report?sessionId=" + executionFinished.getSessionId());
+        publishReportLink(logger, executionFinished);
     }
 
     private TestExecutionEntity createTestExecution(PrintStream logger) {
@@ -150,7 +146,7 @@ public class JaggerTestExecutionBuilder extends Builder {
         testExecutionEntity.setEnvId(evaluatedEnvId);
         testExecutionEntity.setLoadScenarioId(evaluatedLoadScenarioId);
         if (StringUtils.isNotEmpty(evaluatedTimeout))
-            testExecutionEntity.setExecutionStartTimeoutInSeconds(Long.parseLong(evaluatedTimeout));
+            testExecutionEntity.setExecutionTimeToStartInSeconds(Long.parseLong(evaluatedTimeout));
         testExecutionEntity.setTestProjectURL(evaluatedTestProjectUrl);
 
         logger.println(format("JaaS endpoint: %s", evaluatedJaasEndpoint));
@@ -161,7 +157,7 @@ public class JaggerTestExecutionBuilder extends Builder {
         if (StringUtils.isNotEmpty(evaluatedTestProjectUrl))
             logger.println(format("    Test project URL: %s", evaluatedTestProjectUrl));
         if (StringUtils.isNotEmpty(evaluatedTimeout))
-            logger.println(format("    Execution start timeout in seconds: %s", evaluatedTimeout));
+            logger.println(format("    Execution time to start in seconds: %s", evaluatedTimeout));
         return testExecutionEntity;
     }
 
@@ -221,6 +217,13 @@ public class JaggerTestExecutionBuilder extends Builder {
             throw new AbortException(format("Test execution with id=%s finished with status FAILED!", executionId));
         }
         return execution;
+    }
+
+    private void publishReportLink(PrintStream logger, TestExecutionEntity executionFinished) {
+        if (executionFinished.getSessionId() == null)
+            logger.println("sessionId is unavailable. Can’t publish link to the test report.");
+        else
+            logger.println("Test execution report can be found by the link " + evaluatedJaasEndpoint + "/report?sessionId=" + executionFinished.getSessionId());
     }
 
     private TestExecutionEntity pollExecution(PrintStream logger, Long executionId, RestTemplate restTemplate) throws AbortException {
