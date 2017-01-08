@@ -152,7 +152,7 @@ public class JaggerTestExecutionBuilder extends Builder {
         testExecutionEntity.setEnvId(evaluatedEnvId);
         testExecutionEntity.setLoadScenarioId(evaluatedLoadScenarioId);
         if (StringUtils.isNotEmpty(evaluatedTimeout))
-            testExecutionEntity.setExecutionStartTimeoutInSeconds(Long.parseLong(evaluatedTimeout));
+            testExecutionEntity.setExecutionTimeToStartInSeconds(Long.parseLong(evaluatedTimeout));
         testExecutionEntity.setTestProjectURL(evaluatedTestProjectUrl);
 
         logger.println(format("JaaS endpoint: %s", evaluatedJaasEndpoint));
@@ -163,7 +163,7 @@ public class JaggerTestExecutionBuilder extends Builder {
         if (StringUtils.isNotEmpty(evaluatedTestProjectUrl))
             logger.println(format("    Test project URL: %s", evaluatedTestProjectUrl));
         if (StringUtils.isNotEmpty(evaluatedTimeout))
-            logger.println(format("    Execution start timeout in seconds: %s", evaluatedTimeout));
+            logger.println(format("    Execution time to start in seconds: %s", evaluatedTimeout));
         return testExecutionEntity;
     }
 
