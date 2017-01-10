@@ -240,13 +240,20 @@ public class JaggerTestExecutionBuilder extends Builder {
         try {
             logger.println();
             logger.println(format("Checking decision for test session with id=%s ... ", sessionId));
-            RequestEntity<?> requestEntity = RequestEntity.get(new URI(evaluatedJaasEndpoint + "/db/sessions/" + sessionId + "/decision")).build();
+            String decisionURL = evaluatedJaasEndpoint + "/db/sessions/" + sessionId + "/decision";
+            RequestEntity<?> requestEntity = RequestEntity.get(new URI(decisionURL)).build();
             ResponseEntity<DecisionPerSessionDto> responseEntity = restTemplate.exchange(requestEntity, DecisionPerSessionDto.class);
             String decisionJson = new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(responseEntity.getBody());
             Decision decision = responseEntity.getBody().getDecision();
             logger.println(format("Decision for session with id=%s is %s", sessionId, decision));
-            logger.println("Full session decision:\n" + decisionJson);
-            if (decision != Decision.OK) {
+            if (decision == Decision.OK) {
+                logger.println("Full session decision can be found here: " + decisionURL);
+            } else {
+                logger.println("Full session decision:\n" + decisionJson);
+            }
+            if (decision == Decision.ERROR || decision == Decision.FATAL) {
+                build.setResult(Result.FAILURE);
+            } else if (decision == Decision.WARNING) {
                 build.setResult(Result.UNSTABLE);
             }
         } catch (URISyntaxException e) {
