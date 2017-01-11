@@ -230,7 +230,6 @@ public class JaggerTestExecutionBuilder extends Builder {
     private void publishReportLink(PrintStream logger, AbstractBuild<?, ?> build, TestExecutionEntity executionFinished) {
         if (executionFinished.getSessionId() == null) {
             logger.println("sessionId is unavailable. Can’t publish link to the test report.");
-            build.setResult(Result.UNSTABLE);
         } else
             logger.println("Test execution report can be found by the link " + evaluatedJaasEndpoint + "/report?sessionId=" + executionFinished.getSessionId());
     }
