@@ -1,8 +1,12 @@
 package com.griddynamics.jagger.jenkins.jaas.plugin;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.griddynamics.jagger.dbapi.dto.DecisionPerSessionDto;
 import com.griddynamics.jagger.jaas.storage.model.TestExecutionEntity;
 import com.griddynamics.jagger.jaas.storage.model.TestExecutionEntity.TestExecutionStatus;
 import com.griddynamics.jagger.jenkins.jaas.plugin.util.JaggerTestExecutionValidation;
+import com.griddynamics.jagger.util.Decision;
 import hudson.AbortException;
 import hudson.EnvVars;
 import hudson.Extension;
@@ -11,6 +15,7 @@ import hudson.Util;
 import hudson.model.AbstractBuild;
 import hudson.model.AbstractProject;
 import hudson.model.BuildListener;
+import hudson.model.Result;
 import hudson.model.TaskListener;
 import hudson.tasks.BuildStepDescriptor;
 import hudson.tasks.Builder;
@@ -21,6 +26,7 @@ import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.QueryParameter;
 import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
@@ -92,7 +98,7 @@ public class JaggerTestExecutionBuilder extends Builder {
     @Override
     public boolean perform(AbstractBuild<?, ?> build, Launcher launcher, BuildListener listener) throws InterruptedException, IOException {
         parseBuildParams(build, listener);
-        startTestExecution(listener);
+        startTestExecution(build, listener);
         return true;
     }
 
@@ -121,7 +127,7 @@ public class JaggerTestExecutionBuilder extends Builder {
         return StringUtils.isNotBlank(evaluated) ? evaluated : null;
     }
 
-    public void startTestExecution(TaskListener listener) throws InterruptedException, IOException {
+    public void startTestExecution(AbstractBuild<?, ?> build, TaskListener listener) throws InterruptedException, IOException {
         final RestTemplate restTemplate = new RestTemplate();
         final PrintStream logger = listener.getLogger();
 
@@ -138,7 +144,9 @@ public class JaggerTestExecutionBuilder extends Builder {
         TestExecutionEntity executionFinished = waitTestExecutionFinished(logger, sentExecution.getId(), restTemplate);
 
         logger.println("\n\nJagger JaaS Jenkins Plugin Step 5: Publishing Test execution results...");
-        publishReportLink(logger, executionFinished);
+        publishReportLink(logger, build, executionFinished);
+
+        checkDecision(logger, build, executionFinished.getSessionId(), restTemplate);
     }
 
     private TestExecutionEntity createTestExecution(PrintStream logger) {
@@ -219,11 +227,50 @@ public class JaggerTestExecutionBuilder extends Builder {
         return execution;
     }
 
-    private void publishReportLink(PrintStream logger, TestExecutionEntity executionFinished) {
-        if (executionFinished.getSessionId() == null)
+    private void publishReportLink(PrintStream logger, AbstractBuild<?, ?> build, TestExecutionEntity executionFinished) {
+        if (executionFinished.getSessionId() == null) {
             logger.println("sessionId is unavailable. Can’t publish link to the test report.");
-        else
+        } else
             logger.println("Test execution report can be found by the link " + evaluatedJaasEndpoint + "/report?sessionId=" + executionFinished.getSessionId());
+    }
+
+    private void checkDecision(PrintStream logger, AbstractBuild<?, ?> build, String sessionId, RestTemplate restTemplate) throws AbortException {
+        String decisionURL = evaluatedJaasEndpoint + "/db/sessions/" + sessionId + "/decision";
+        try {
+            logger.println();
+            logger.println(format("Checking decision for test session with id=%s ... ", sessionId));
+            RequestEntity<?> requestEntity = RequestEntity.get(new URI(decisionURL)).build();
+            ResponseEntity<DecisionPerSessionDto> responseEntity = restTemplate.exchange(requestEntity, DecisionPerSessionDto.class);
+            DecisionPerSessionDto decisionPerSessionDto = responseEntity.getBody();
+            String decisionJson = new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(decisionPerSessionDto);
+            Decision decision = decisionPerSessionDto.getDecision();
+            logger.println(format("Decision for session with id=%s is %s", sessionId, decision));
+            if (decision == Decision.OK) {
+                logger.println("Full session decision can be found here: " + decisionURL);
+            } else {
+                logger.println("Full session decision:\n" + decisionJson);
+            }
+            if (decision == Decision.ERROR || decision == Decision.FATAL) {
+                build.setResult(Result.FAILURE);
+            } else if (decision == Decision.WARNING) {
+                build.setResult(Result.UNSTABLE);
+            }
+        } catch (URISyntaxException e) {
+            logger.println();
+            throw new AbortException("Invalid JaaS endpoint URL: " + e.getMessage());
+        } catch (RestClientException ex) {
+            build.setResult(Result.UNSTABLE);
+            logger.println();
+            if ((ex instanceof HttpClientErrorException) && ((HttpClientErrorException) ex).getRawStatusCode() == 404) {
+                logger.println(format("Error occurred while checking decision of Test session with id=%s: " +
+                        "Endpoint %s is not found.", sessionId, decisionURL));
+            } else {
+                logger.println(format("Error occurred while checking decision of Test session with id=%s: %s", sessionId, ex.getMessage()));
+            }
+        } catch (JsonProcessingException e) {
+            build.setResult(Result.UNSTABLE);
+            logger.println("\nError occurred during decision response parsing: " + e.getMessage());
+        }
     }
 
     private TestExecutionEntity pollExecution(PrintStream logger, Long executionId, RestTemplate restTemplate) throws AbortException {
