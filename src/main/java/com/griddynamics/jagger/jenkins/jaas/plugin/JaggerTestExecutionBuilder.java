@@ -231,20 +231,20 @@ public class JaggerTestExecutionBuilder extends Builder {
         if (executionFinished.getSessionId() == null) {
             logger.println("sessionId is unavailable. Can’t publish link to the test report.");
             build.setResult(Result.UNSTABLE);
-        }
-        else
+        } else
             logger.println("Test execution report can be found by the link " + evaluatedJaasEndpoint + "/report?sessionId=" + executionFinished.getSessionId());
     }
 
     private void checkDecision(PrintStream logger, AbstractBuild<?, ?> build, String sessionId, RestTemplate restTemplate) throws AbortException {
+        String decisionURL = evaluatedJaasEndpoint + "/db/sessions/" + sessionId + "/decision";
         try {
             logger.println();
             logger.println(format("Checking decision for test session with id=%s ... ", sessionId));
-            String decisionURL = evaluatedJaasEndpoint + "/db/sessions/" + sessionId + "/decision";
             RequestEntity<?> requestEntity = RequestEntity.get(new URI(decisionURL)).build();
             ResponseEntity<DecisionPerSessionDto> responseEntity = restTemplate.exchange(requestEntity, DecisionPerSessionDto.class);
-            String decisionJson = new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(responseEntity.getBody());
-            Decision decision = responseEntity.getBody().getDecision();
+            DecisionPerSessionDto decisionPerSessionDto = responseEntity.getBody();
+            String decisionJson = new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(decisionPerSessionDto);
+            Decision decision = decisionPerSessionDto.getDecision();
             logger.println(format("Decision for session with id=%s is %s", sessionId, decision));
             if (decision == Decision.OK) {
                 logger.println("Full session decision can be found here: " + decisionURL);
@@ -264,14 +264,13 @@ public class JaggerTestExecutionBuilder extends Builder {
             logger.println();
             if ((ex instanceof HttpClientErrorException) && ((HttpClientErrorException) ex).getRawStatusCode() == 404) {
                 logger.println(format("Error occurred while checking decision of Test session with id=%s: " +
-                        "Endpoint %s/db/sessions/%s/decision is not found. Seems that property 'jaas.hide.db.access.via.api' is set to false.",
-                        sessionId, evaluatedJaasEndpoint, sessionId));
+                        "Endpoint %s is not found.", sessionId, decisionURL));
             } else {
                 logger.println(format("Error occurred while checking decision of Test session with id=%s: %s", sessionId, ex.getMessage()));
             }
         } catch (JsonProcessingException e) {
             build.setResult(Result.UNSTABLE);
-            logger.println("\nError occurred during decisions response parsing:" + e.getMessage());
+            logger.println("\nError occurred during decision response parsing: " + e.getMessage());
         }
     }
 
