@@ -10,7 +10,7 @@
 
     <groupId>com.griddynamics.jagger</groupId>
     <artifactId>jagger-jaas-jenkins-plugin</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <version>1.0</version>
     <packaging>hpi</packaging>
     <name>Jagger JaaS Plugin</name>
     <url>https://github.com/griddynamics/jagger-jaas-jenkins-plugin</url>
@@ -69,7 +69,7 @@
         <url>https://github.com/griddynamics/jagger-jaas-jenkins-plugin</url>
         <connection>scm:git:git://github.com/griddynamics/jagger-jaas-jenkins-plugin.git</connection>
         <developerConnection>scm:git:git@github.com:griddynamics/jagger-jaas-jenkins-plugin.git</developerConnection>
-      <tag>HEAD</tag>
+      <tag>jagger-jaas-jenkins-plugin-1.0</tag>
   </scm>
 
     <issueManagement>
